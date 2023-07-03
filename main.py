@@ -1,24 +1,17 @@
 # 实现读取yaml文件的功能
 import os
-import yaml
 import requests
 from bs4 import BeautifulSoup
 import json
 from itertools import islice
+import copy
+import time
+import random
+from icon_r_util import read_icon_font_json_dict, read_config, write_error_log
 
-
-def read_config():
-    '''
-    读取配置文件
-    '''
-    config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
-    with open(config_path, 'r', encoding='utf-8') as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
-        return config
-
-
+# 解决 unicode 冲突时的临时开始unicode
+CONFLICT_TEMP_UNICODE = 70000
 config = read_config()
-# print(config)
 icon_font_config = config['icon_font']
 codesign_config = config['codesign']
 TOKEN = codesign_config.get('token')
@@ -48,7 +41,6 @@ def read_icon_font_js_to_svg(js_path, icon_font_config):
         for symbol in symbols:
             # 获取symbol标签的 id 属性值
             id = symbol.get('id')
-            # print(id)
             # 获取symbol标签的 viewBox 属性值
             viewBox = symbol.get('viewbox')
             # 获取symbol标签的 所有属性
@@ -66,36 +58,6 @@ def read_icon_font_js_to_svg(js_path, icon_font_config):
             # 将字典添加到列表中
             list1.append(dict1)
         return list1
-
-
-def read_icon_font_json_dict(json_path):
-    '''
-    读取iconfont的json文件并生成字典
-    '''
-    # 读json文件
-    with open(json_path, 'r', encoding='utf-8') as f:
-        # 装载数据
-        json_data = json.load(f)
-        # 获取json文件中的glyphs
-        glyphs = json_data['glyphs']
-        css_prefix = json_data['css_prefix_text']
-        # 构建快速icon字典
-        icon_dict = {}
-        # 遍历icon列表
-        for json_icon in glyphs:
-            # 获取icon的class名称
-            font_class = json_icon['font_class']
-            font_class = '{p}{c}'.format(p=css_prefix, c=font_class)
-            # 获取icon的unicode
-            icon_unicode = json_icon['unicode']
-            # 获取icon unicode_decimal
-            icon_unicode_decimal = json_icon['unicode_decimal']
-            # 将icon的名称和unicode添加到icon字典中
-            icon_dict[font_class] = {
-                'unicode': icon_unicode,
-                'unicode_decimal': icon_unicode_decimal
-            }
-        return icon_dict
 
 
 def create_icon_svg(icon_dict):
@@ -141,10 +103,11 @@ def save_icon_svg(icon_str, icon_save_path):
         f.close()
 
 
-def update_icon_unicode(icon_id,  class_name):
+def update_icon_unicode(icon_id,  class_name, json_icon_unicode_dict):
     '''
     更新icon的unicode
     '''
+    time.sleep(random.randint(0,3))
     update_request_url = codesign_config.get('update_request_url')
     update_request_method = codesign_config.get(
         'update_request_method')
@@ -159,6 +122,9 @@ def update_icon_unicode(icon_id,  class_name):
     print(update_json_data)
     response = requests.request(update_request_method.lower(
     ), update_request_url.replace('{icon_id}', icon_id), headers=HEADERS, data=update_json_data)
+    if 'message' in response.json():
+        write_error_log('更新出现错误：{}'.format(response.json()['message']))
+        print('更新出现错误：{}'.format(response.json()['message']))
     return response
 
 
@@ -186,31 +152,90 @@ def send_icons_to_server(json_data, json_icon_unicode_dict: dict):
     # 获取响应状态码
     status_code = response.status_code
     if status_code == 401:
+        write_error_log("token失效无权限访问")
         return 'token失效无权限访问'
     # 获取响应数据
     response_data = response.json()
     status_code = response.status_code
     # 合并response_data为一个逗号间隔字符串
-    class_list_str = ','.join(map(response_data, lambda x: x['class_name']))
 
     # 判断响应状态码
     if status_code == 200:
+        # 如果返回数据中有error字段和message字段则表示上传失败 输出错误信息
+        if 'errors' in response_data and 'message' in response_data:
+            write_error_log(json.dumps(response_data))
+            return response_data['message']
+        class_list_str = ','.join(
+            map(lambda x: x['class_name'], response_data))
         if unicode_sync is True:
+            will_changed_unicode_list = list(
+                map(lambda x: json_icon_unicode_dict.get(x['class_name']), response_data))
+            # 有冲突icon列表
+            conflict_update_batch_icon_list = list(filter(
+                lambda x: will_changed_unicode_list.count(x['unicode']) > 0, response_data))
+            # 有冲突的unicode列表
+            conflict_update_batch_unicode_list = list(
+                map(lambda x: x['unicode'], conflict_update_batch_icon_list))
+            if len(conflict_update_batch_unicode_list) > 0:
+                print('有冲突的unicode列表：{}'.format(
+                    '.'.format(conflict_update_batch_unicode_list)))
+            # 如果两个列表有相交则先更新一遍冲突的unicode
+            for index, icon in enumerate(conflict_update_batch_icon_list):
+                # 获取icon的class名称
+                class_name = icon['class_name']
+                # 获取icon的id
+                icon_id = icon['id']
+                temp_json_icon_unicode_dict = copy.deepcopy(
+                    json_icon_unicode_dict)
+                temp_json_icon_unicode_dict[class_name]['unicode_decimal'] = CONFLICT_TEMP_UNICODE + index
+                # 更新icon的unicode
+                update_icon_unicode(icon_id, class_name,
+                                    json_icon_unicode_dict)
+
             for icon in response_data:
-                # print(icon)
                 # 获取icon的class名称
                 class_name = icon['class_name']
                 # 获取icon的id
                 icon_id = icon['id']
                 # 更新icon的unicode
-                update_icon_unicode(icon_id, class_name)
+                update_icon_unicode(icon_id, class_name,
+                                    json_icon_unicode_dict)
 
         return '[{}]上传成功'.format(class_list_str)
     else:
         return response_data
 
 
-def get_icons(icon_list, json_icon_unicode_dict):
+def get_uniq_icon_for_codesign(icon_key_list_dict, icon_data_dict):
+    """
+    获取到一个不会重复的icon(codeisgn中的icon)
+    **svg unicode 重复无法解决**
+    ** name、class_name 重复 自动拼接数字**
+    codeisgn 重复规则  svg、name、class_name、unicode都不能重复
+    """
+    for key in icon_data_dict.keys():
+        # 判断icon_list这个列表中有没有这个icon
+        if key in icon_key_list_dict and icon_key_list_dict[key].count(icon_data_dict[key]) > 0:
+
+            message = {
+                'class_name': icon_data_dict['class_name'],
+                'name': icon_data_dict['name'],
+                'repeat_key': key,
+                'auto_result': 'Can\'t solve it. But it will be uploaded to codeisgn.'
+            }
+            if key in ['name', 'class_name']:
+                original_value = icon_data_dict[key]
+                while icon_key_list_dict[key].count(icon_data_dict[key]) > 0:
+                    icon_data_dict[key] = '{}-1'.format(icon_data_dict[key])
+                message['auto_result'] = 'val:[{}]-->[{}]'.format(
+                    original_value, icon_data_dict[key])
+            print('[{}]icon重复了,详情查看error.log 文件'.format(
+                icon_data_dict['class_name']))
+            write_error_log(json.dumps(message, ensure_ascii=False))
+    return icon_data_dict
+
+
+def get_icons(icon_list, json_icon_unicode_dict, icon_key_list_dict):
     batch_icon_list = []
     # 遍历icon列表
     for icon in icon_list:
@@ -220,7 +245,9 @@ def get_icons(icon_list, json_icon_unicode_dict):
         icon_id = icon['icon_id']
         # 获取icon的unicode
         icon_unicode = json_icon_unicode_dict.get(icon_id)
+        icon_name = icon_id
         if not icon_unicode is None:
+            icon_name = icon_unicode.get('name', icon_id)
             icon_unicode = icon_unicode['unicode_decimal']
         # 构建icon保存路径
         # icon_save_path = os.path.join(codesign_out_path, icon_id + '.svg')
@@ -229,12 +256,20 @@ def get_icons(icon_list, json_icon_unicode_dict):
         # save_icon_svg(icon_str, icon_save_path)
         # 构建icon的json数据
         json_data_dict = {
-            'name': icon_id,
+            'name': icon_name,
             'class_name': icon_id,
             'unicode': icon_unicode,
             'original_svg': icon_str,
             'svg': icon_str
         }
+
+        json_data_dict = get_uniq_icon_for_codesign(
+            icon_key_list_dict, json_data_dict)
+        #  menu-城市级别
+
+        for key in icon_key_list_dict.keys():
+            icon_key_list_dict[key].append(json_data_dict[key])
+        # print(json.dumps(json_data_dict))
         batch_icon_list.append(json_data_dict)
     return batch_icon_list
 
@@ -255,9 +290,16 @@ if __name__ == '__main__':
         os.makedirs(codesign_out_path)
     json_path = icon_font_config['json_path']
     json_icon_unicode_dict = read_icon_font_json_dict(json_path)
+    icon_key_list_dict = {
+        'svg': [],
+        'name': [],
+        'class_name': [],
+        'unicode': [],
+    }
     # 将icon_list列表拆分成20个一组上传
     for i in chunk_list(icon_list, 20):
-        batch_icon_list = get_icons(i, json_icon_unicode_dict)
+        batch_icon_list = get_icons(
+            i, json_icon_unicode_dict, icon_key_list_dict)
         # 将列表转换为json
         # codesign的proejctid
         project_id = codesign_config['project_id']

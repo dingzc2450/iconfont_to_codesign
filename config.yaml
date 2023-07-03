@@ -10,6 +10,7 @@ codesign:
   # 上传图标的请求地址
   request_url: "https://codesign.qq.com/api/icons/batch"
   request_method: "post"
+  json_path: "data/codesign/iconfont.json"
   # 更新图标的请求地址
   update_request_url: "https://codesign.qq.com/api/icons/{icon_id}?include=creator"
   update_request_method: "patch"
