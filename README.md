@@ -24,6 +24,10 @@
 3. 从`iconfont`上下载icon列表 如图放置![icon资源](images/image.png)
 4. 接着在环境准备完毕后 `python main.py`
 
+#### 声明
+
+此工具为了方便任意其他拥有iconfont类似结构的icon库迁移到codesign而书写的学习脚本
+
 #### 参与贡献
 
 1. Fork 本仓库
