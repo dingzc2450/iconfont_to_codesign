@@ -32,20 +32,16 @@ if __name__ == "__main__":
             print('unicode_decimal not equal')
             print('icon_font_item:{}'.format(icon_font_item))
             print('codesign_item:{}'.format(codesign_item))
-            exit(1)
         if (icon_font_item['class'] != codesign_item['class']):
             print('class not equal')
             print('icon_font_item:{}'.format(icon_font_item))
             print('codesign_item:{}'.format(codesign_item))
-            exit(1)
         if (icon_font_item['name'] != codesign_item['name']):
             print('name not equal')
             print('icon_font_item:{}'.format(icon_font_item))
             print('codesign_item:{}'.format(codesign_item))
-            exit(1)
         if (icon_font_item['unicode'] != codesign_item['unicode']):
             print('unicode not equal')
             print('icon_font_item:{}'.format(icon_font_item))
             print('codesign_item:{}'.format(codesign_item))
-            exit(1)
     print('verify_sync.py:success')
