@@ -1,0 +1,19 @@
+# iconfont 相关资源配置 从iconfont.cn的项目中 点击下载到本地的资源包内的文件
+icon_font:
+  svg_path: "data/iconfont/iconfont.svg"
+  js_path: "data/iconfont/iconfont.js"
+  json_path: "data/iconfont/iconfont.json"
+  out_svg_height: 200
+  out_svg_width: 200
+codesign:
+  out_path: "data/codesign"
+  # 上传图标的请求地址
+  request_url: "https://codesign.qq.com/api/icons/batch"
+  request_method: "post"
+  # 更新图标的请求地址
+  update_request_url: "https://codesign.qq.com/api/icons/{icon_id}?include=creator"
+  update_request_method: "patch"
+  project_id: "your project id"
+  token: "your token"
+  # unicode编码是否同步到codesign
+  unicode_sync: true
