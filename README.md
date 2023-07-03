@@ -23,6 +23,7 @@
 2. 创建一个图标库 会自动跳转到一个地址 链接应该为： `https://codesign.qq.com/app/icon/{project_id}/detail?team_id={team_id}`  其中将`icon/` 后面 到`/detail`前面的字符串复制下来  这个是 project_id ![项目id获取](images/project.png)
 3. 从`iconfont`上下载icon列表 如图放置![icon资源](images/image.png)
 4. 接着在环境准备完毕后 `python main.py`
+5. 上传完毕后，如果要验证两边数据是否一致，可以运行 `python verify_sync.py` 命令
 
 #### 声明
 
