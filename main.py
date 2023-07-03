@@ -107,7 +107,7 @@ def update_icon_unicode(icon_id,  class_name, json_icon_unicode_dict):
     '''
     更新icon的unicode
     '''
-    time.sleep(random.randint(0,3))
+    time.sleep(random.randint(0,1))
     update_request_url = codesign_config.get('update_request_url')
     update_request_method = codesign_config.get(
         'update_request_method')
